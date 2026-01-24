@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Banco de Dados
+  postgres:
+    image: postgres:15-alpine
+    container_name: soc_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB: soc_dashboard
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - soc_network
+
+  # Backend API
+  backend:
+    build: ./backend
+    container_name: soc_backend
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgres://admin:secure_password@postgres:5432/soc_dashboard
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+    networks:
+      - soc_network
+
+  # Frontend (Nginx Production Build)
+  # Nota: Para desenvolvimento, você usaria o Vite server.
+  # Para produção, você construiria a imagem do frontend.
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile.frontend # Você precisaria criar este arquivo para prod
+    container_name: soc_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - soc_network
+
+networks:
+  soc_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
