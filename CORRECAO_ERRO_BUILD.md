@@ -30,7 +30,7 @@ npm error The `npm ci` command can only install with an existing package-lock.js
 
 **Dockerfile Final:**
 ```dockerfile
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 

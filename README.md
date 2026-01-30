@@ -34,7 +34,7 @@ painel/
 - **Lucide React** - Ícones
 
 ### Backend
-- **Node.js 18+** - Runtime
+- **Node.js 20+** - Runtime
 - **Express** - Framework web
 - **TypeScript** - Tipagem estática
 - **PostgreSQL** - Banco de dados
@@ -50,7 +50,7 @@ painel/
 
 ### Pré-requisitos
 
-- **Node.js 18+** e **Yarn**
+- **Node.js 20+** e **Yarn**
 - **Docker & Docker Compose** (para deploy)
 - **PostgreSQL 15** (se não usar Docker)
 
