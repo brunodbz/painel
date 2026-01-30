@@ -4,11 +4,16 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --only=production && npm cache clean --force
+# Instalar todas as dependências (incluindo devDependencies para build)
+RUN npm install && npm cache clean --force
 
 COPY . .
 
+# Build do TypeScript
 RUN npm run build
+
+# Remover devDependencies após build
+RUN npm prune --production
 
 EXPOSE 3001
 
