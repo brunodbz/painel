@@ -356,7 +356,7 @@ GRANT ALL PRIVILEGES ON DATABASE soc_dashboard TO admin;
 \q
 ```
 
-### Passo 4: Instalar Yarn
+### Passo 4: Instalar Yarn (apenas para frontend)
 
 ```bash
 sudo npm install -g yarn
@@ -375,8 +375,8 @@ cd painel
 ```bash
 cd backend
 
-# Instalar dependências
-yarn install
+# Instalar dependências (backend usa npm)
+npm install
 
 # Criar arquivo de ambiente
 nano .env
@@ -397,10 +397,10 @@ Salve e saia (`Ctrl+X`, `Y`, `Enter`).
 
 ```bash
 # Compilar o código
-yarn build
+npm run build
 
 # Testar o backend
-yarn start
+npm start
 ```
 
 Se tudo estiver OK, pressione `Ctrl+C` para parar.
@@ -410,7 +410,7 @@ Se tudo estiver OK, pressione `Ctrl+C` para parar.
 ```bash
 cd ~/painel
 
-# Instalar dependências
+# Instalar dependências (frontend usa yarn)
 yarn install
 
 # Compilar para produção
@@ -517,7 +517,7 @@ Type=simple
 User=deploy
 WorkingDirectory=/home/deploy/painel/backend
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/yarn start
+ExecStart=/usr/bin/npm start
 Restart=on-failure
 RestartSec=10
 
@@ -725,13 +725,13 @@ cd ~/painel
 # Baixar atualizações
 git pull origin master
 
-# Atualizar Backend
+# Atualizar Backend (usa npm)
 cd backend
-yarn install
-yarn build
+npm install
+npm run build
 sudo systemctl restart soc-backend
 
-# Atualizar Frontend
+# Atualizar Frontend (usa yarn)
 cd ~/painel
 yarn install
 yarn build
