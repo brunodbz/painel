@@ -22,6 +22,12 @@ Expected version ">=20.0.0". Got "18.20.8"
 ```
 **Solução:** Dockerfiles atualizados para Node.js 20
 
+### ❌ Erro #4: Rollup incompatível com Alpine Linux (musl)
+```
+Error: Cannot find module @rollup/rollup-linux-x64-musl
+```
+**Solução:** Frontend usa `node:20-slim` (glibc) ao invés de `node:20-alpine` (musl)
+
 ---
 
 ## ✅ Alterações Finais Aplicadas
@@ -82,13 +88,13 @@ CMD ["npm", "start"]
 
 ### Frontend Dockerfile
 ```dockerfile
-FROM node:20-alpine as build
+FROM node:20-slim as build
 
 WORKDIR /app
 
 COPY package*.json yarn.lock ./
 
-RUN yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile --network-timeout 600000
 
 COPY . .
 
@@ -107,6 +113,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 CMD ["nginx", "-g", "daemon off;"]
 ```
+
+**Importante:** Frontend usa `node:20-slim` porque Rollup não funciona no Alpine (musl libc).
 
 ---
 

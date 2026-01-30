@@ -45,13 +45,13 @@ CMD ["npm", "start"]
 
 ### Frontend Dockerfile
 ```dockerfile
-FROM node:20-alpine as build
+FROM node:20-slim as build
 
 WORKDIR /app
 
 COPY package*.json yarn.lock ./
 
-RUN yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile --network-timeout 600000
 
 COPY . .
 
@@ -70,6 +70,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 CMD ["nginx", "-g", "daemon off;"]
 ```
+
+**Nota:** Frontend usa `node:20-slim` (não alpine) porque Rollup precisa de glibc.
 
 ---
 
