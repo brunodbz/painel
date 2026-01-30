@@ -1,49 +1,54 @@
 version: '3.8'
 
 services:
-  # Banco de Dados
   postgres:
     image: postgres:15-alpine
     container_name: soc_postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secure_password
-      POSTGRES_DB: soc_dashboard
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-soc_dashboard}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     networks:
       - soc_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Backend API
   backend:
     build: ./backend
     container_name: soc_backend
     environment:
-      PORT: 3001
-      DATABASE_URL: postgres://admin:secure_password@postgres:5432/soc_dashboard
+      PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-secure_password}@postgres:5432/${POSTGRES_DB:-soc_dashboard}
+      NODE_ENV: ${NODE_ENV:-production}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:80}
     ports:
-      - "3001:3001"
+      - "${BACKEND_PORT:-3001}:3001"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - soc_network
+    restart: unless-stopped
 
-  # Frontend (Nginx Production Build)
-  # Nota: Para desenvolvimento, você usaria o Vite server.
-  # Para produção, você construiria a imagem do frontend.
   frontend:
     build: 
       context: .
-      dockerfile: Dockerfile.frontend # Você precisaria criar este arquivo para prod
+      dockerfile: Dockerfile.frontend
     container_name: soc_frontend
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - backend
     networks:
       - soc_network
+    restart: unless-stopped
 
 networks:
   soc_network:
