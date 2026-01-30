@@ -63,11 +63,21 @@ FROM node:20-slim as build
 
 WORKDIR /app
 
+# Instalar dependências do sistema necessárias para build
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copiar arquivos de dependências
 COPY package*.json yarn.lock ./
 
-# Instalar dependências
+# Instalar dependências com force para garantir binários nativos
 RUN yarn install --frozen-lockfile --network-timeout 600000
+
+# Forçar reinstalação do Rollup para garantir binário correto
+RUN yarn add rollup --force
 
 # Copiar código fonte
 COPY . .
@@ -95,7 +105,8 @@ CMD ["nginx", "-g", "daemon off;"]
 **Por que Slim ao invés de Alpine:**
 - Rollup precisa de glibc (não disponível em Alpine/musl)
 - node:20-slim usa Debian com glibc
-- Imagem um pouco maior, mas funcional
+- Instala python3, make, g++ para compilar binários nativos
+- `yarn add rollup --force` garante binário correto
 - Stage 2 (nginx) ainda usa Alpine (não precisa Rollup)
 
 ---
