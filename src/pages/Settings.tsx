@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Card } from '../components/ui/Card';
-import { Server, Key, Save } from 'lucide-react';
+import { Server, Key, Save, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
 type SettingsFormValues = {
   elasticUrl: string;
@@ -17,12 +17,90 @@ type SettingsFormValues = {
 };
 
 export const Settings = () => {
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SettingsFormValues>();
+  const { register, handleSubmit, formState: { errors, isSubmitting }, setValue, reset } = useForm<SettingsFormValues>();
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Carregar configurações ao montar o componente
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/settings');
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const { elastic, defender, opencti, tenable, rss } = result.data;
+
+        if (elastic) {
+          setValue('elasticUrl', elastic.url || '');
+          setValue('elasticKey', elastic.apiKey || '');
+        }
+        if (defender) {
+          setValue('defenderTenantId', defender.tenantId || '');
+          setValue('defenderClientId', defender.clientId || '');
+          setValue('defenderSecret', defender.clientSecret || '');
+        }
+        if (opencti) {
+          setValue('openCtiUrl', opencti.url || '');
+          setValue('openCtiToken', opencti.token || '');
+        }
+        if (tenable) {
+          setValue('tenableAccessKey', tenable.accessKey || '');
+          setValue('tenableSecretKey', tenable.secretKey || '');
+        }
+        if (rss && rss.feeds) {
+          setValue('rssFeeds', rss.feeds.join('\n'));
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+      setSaveStatus('error');
+      setSaveMessage('Erro ao carregar configurações existentes');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onSubmit = async (data: SettingsFormValues) => {
-    console.log("Saving settings:", data);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    alert("Configurações salvas com sucesso! (Simulação)");
+    try {
+      setSaveStatus('idle');
+      setSaveMessage('');
+
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSaveStatus('success');
+        setSaveMessage(result.message || 'Configurações salvas com sucesso!');
+        
+        // Esconder mensagem após 5 segundos
+        setTimeout(() => {
+          setSaveStatus('idle');
+        }, 5000);
+      } else {
+        throw new Error(result.error || 'Erro ao salvar');
+      }
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+      setSaveStatus('error');
+      setSaveMessage('Erro ao salvar configurações. Tente novamente.');
+      
+      setTimeout(() => {
+        setSaveStatus('idle');
+      }, 5000);
+    }
   };
 
   const InputGroup = ({ label, name, type = "text", placeholder, error }: any) => (
@@ -31,7 +109,7 @@ export const Settings = () => {
       <div className="relative">
         <input
           type={type}
-          {...register(name, { required: true })}
+          {...register(name)}
           placeholder={placeholder}
           className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
         />
@@ -40,12 +118,40 @@ export const Settings = () => {
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-12">
+        <div className="flex items-center justify-center py-20">
+          <Loader className="animate-spin text-indigo-600" size={40} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       <header className="mb-8">
         <h2 className="text-3xl font-bold text-slate-800">Painel de Controle</h2>
         <p className="text-slate-500 mt-1">Gerencie conexões de API e fontes de dados.</p>
       </header>
+
+      {/* Mensagem de status */}
+      {saveStatus !== 'idle' && (
+        <div className={`p-4 rounded-lg flex items-center gap-3 ${
+          saveStatus === 'success' 
+            ? 'bg-green-50 border border-green-200' 
+            : 'bg-red-50 border border-red-200'
+        }`}>
+          {saveStatus === 'success' ? (
+            <CheckCircle className="text-green-600" size={20} />
+          ) : (
+            <AlertCircle className="text-red-600" size={20} />
+          )}
+          <span className={saveStatus === 'success' ? 'text-green-800' : 'text-red-800'}>
+            {saveMessage}
+          </span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         
@@ -96,14 +202,30 @@ export const Settings = () => {
           </div>
         </Card>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onClick={() => reset()}
+            className="flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-lg font-medium hover:bg-slate-200 focus:ring-4 focus:ring-slate-200 transition-all"
+          >
+            Resetar
+          </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition-all disabled:opacity-70"
+            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            <Save size={20} />
-            {isSubmitting ? 'Salvando...' : 'Salvar Configurações'}
+            {isSubmitting ? (
+              <>
+                <Loader className="animate-spin" size={20} />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save size={20} />
+                Salvar Configurações
+              </>
+            )}
           </button>
         </div>
       </form>
