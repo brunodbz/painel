@@ -1,23 +1,37 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MOCK_DATA } from '../services/mockData';
 import { DashboardData } from '../types';
 
-// Em produção, isso chamaria sua API real
+// Função para buscar dados reais da API
 const fetchDashboardData = async (): Promise<DashboardData> => {
-  // Simula delay de rede
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  // Retorna dados mockados com timestamps atualizados para parecer "vivo"
-  const now = new Date();
-  const updateTimestamp = (items: any[]) => items.map(i => ({ ...i, timestamp: now.toISOString() }));
-  
-  return {
-    elastic: updateTimestamp(MOCK_DATA.elastic),
-    defender: updateTimestamp(MOCK_DATA.defender),
-    opencti: updateTimestamp(MOCK_DATA.opencti),
-    tenable: updateTimestamp(MOCK_DATA.tenable),
-    rss: updateTimestamp(MOCK_DATA.rss),
-  };
+  try {
+    const response = await fetch('/api/dashboard');
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    // Se a API retornar dados no formato correto, use-os
+    // Senão, retorne estrutura vazia
+    return {
+      elastic: result.elastic || [],
+      defender: result.defender || [],
+      opencti: result.opencti || [],
+      tenable: result.tenable || [],
+      rss: result.rss || [],
+    };
+  } catch (error) {
+    console.error('Erro ao buscar dados do dashboard:', error);
+    // Retornar estrutura vazia em caso de erro
+    return {
+      elastic: [],
+      defender: [],
+      opencti: [],
+      tenable: [],
+      rss: [],
+    };
+  }
 };
 
 export function usePolling(intervalMs: number = 30000) {
