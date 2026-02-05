@@ -26,20 +26,25 @@ export class TenableService {
 
   async getVulnerabilities(config: TenableConfig, limit: number = 10) {
     try {
+      // API v2 do Tenable - endpoint correto
       const response = await axios.get(`${this.baseUrl}/workbenches/vulnerabilities`, {
         headers: {
           'X-ApiKeys': `accessKey=${config.accessKey}; secretKey=${config.secretKey}`,
-          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         params: {
-          filter: 'severity:critical,high',
-          limit: limit,
+          // Buscar todas as vulnerabilidades (sem filtro na query, filtraremos depois)
         },
       });
 
       const vulnerabilities = response.data.vulnerabilities || [];
 
-      return vulnerabilities.slice(0, limit).map((vuln: TenableVulnerability) => ({
+      // Filtrar por severidade critical (4) e high (3) localmente
+      const filteredVulns = vulnerabilities.filter((vuln: TenableVulnerability) => 
+        vuln.severity >= 3
+      );
+
+      return filteredVulns.slice(0, limit).map((vuln: TenableVulnerability) => ({
         id: `tenable-${vuln.plugin_id}`,
         source: 'Tenable' as const,
         severity: this.getSeverityLevel(vuln.severity),
@@ -47,8 +52,16 @@ export class TenableService {
         description: `Host: ${vuln.host_name || 'N/A'} | Plugin ID: ${vuln.plugin_id}`,
         timestamp: vuln.first_found || new Date().toISOString(),
       }));
-    } catch (error) {
-      console.error('Erro ao buscar vulnerabilidades do Tenable:', error);
+    } catch (error: any) {
+      if (error.response) {
+        console.error('Erro ao buscar vulnerabilidades do Tenable:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+        });
+      } else {
+        console.error('Erro ao buscar vulnerabilidades do Tenable:', error.message);
+      }
       return [];
     }
   }
