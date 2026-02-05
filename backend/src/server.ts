@@ -4,6 +4,10 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
 import { TenableService } from './services/tenable';
+import { ElasticService } from './services/elastic';
+import { DefenderService } from './services/defender';
+import { OpenCTIService } from './services/opencti';
+import { RSSService } from './services/rss';
 
 dotenv.config();
 
@@ -116,26 +120,101 @@ app.get('/api/dashboard', async (req, res) => {
       rss: []
     };
 
-    // Buscar dados do Tenable se configurado
-    if (settings.tenable && settings.tenable.accessKey && settings.tenable.secretKey) {
-      try {
-        const tenableService = new TenableService();
-        dashboardData.tenable = await tenableService.getVulnerabilities({
-          accessKey: settings.tenable.accessKey,
-          secretKey: settings.tenable.secretKey
-        }, 10);
-        console.log(`✓ Fetched ${dashboardData.tenable.length} vulnerabilities from Tenable`);
-      } catch (error) {
-        console.error('Error fetching Tenable data:', error);
-        dashboardData.tenable = [];
-      }
+    // Buscar dados de todas as APIs em paralelo
+    const promises = [];
+
+    // Elasticsearch
+    if (settings.elastic?.url && (settings.elastic?.apiKey || (settings.elastic?.username && settings.elastic?.password))) {
+      promises.push(
+        (async () => {
+          try {
+            const elasticService = new ElasticService();
+            const config = settings.elastic.apiKey 
+              ? { ...settings.elastic, username: '', password: settings.elastic.apiKey }
+              : settings.elastic;
+            dashboardData.elastic = await elasticService.getAlerts(config, 10);
+            console.log(`✓ Fetched ${dashboardData.elastic.length} alerts from Elasticsearch`);
+          } catch (error) {
+            console.error('Error fetching Elasticsearch data:', error);
+            dashboardData.elastic = [];
+          }
+        })()
+      );
     }
 
-    // Aqui você pode adicionar outras integrações:
-    // - Elastic
-    // - Defender
-    // - OpenCTI
-    // - RSS
+    // Microsoft Defender
+    if (settings.defender?.tenantId && settings.defender?.clientId && settings.defender?.clientSecret) {
+      promises.push(
+        (async () => {
+          try {
+            const defenderService = new DefenderService();
+            dashboardData.defender = await defenderService.getAlerts(settings.defender, 10);
+            console.log(`✓ Fetched ${dashboardData.defender.length} alerts from Microsoft Defender`);
+          } catch (error) {
+            console.error('Error fetching Defender data:', error);
+            dashboardData.defender = [];
+          }
+        })()
+      );
+    }
+
+    // OpenCTI
+    if (settings.opencti?.url && (settings.opencti?.apiKey || settings.opencti?.token)) {
+      promises.push(
+        (async () => {
+          try {
+            const openctiService = new OpenCTIService();
+            const apiKey = settings.opencti?.apiKey || settings.opencti?.token;
+            dashboardData.opencti = await openctiService.getThreats({ 
+              url: settings.opencti.url, 
+              apiKey 
+            }, 10);
+            console.log(`✓ Fetched ${dashboardData.opencti.length} threats from OpenCTI`);
+          } catch (error) {
+            console.error('Error fetching OpenCTI data:', error);
+            dashboardData.opencti = [];
+          }
+        })()
+      );
+    }
+
+    // Tenable
+    if (settings.tenable?.accessKey && settings.tenable?.secretKey) {
+      promises.push(
+        (async () => {
+          try {
+            const tenableService = new TenableService();
+            dashboardData.tenable = await tenableService.getVulnerabilities({
+              accessKey: settings.tenable.accessKey,
+              secretKey: settings.tenable.secretKey
+            }, 10);
+            console.log(`✓ Fetched ${dashboardData.tenable.length} vulnerabilities from Tenable`);
+          } catch (error) {
+            console.error('Error fetching Tenable data:', error);
+            dashboardData.tenable = [];
+          }
+        })()
+      );
+    }
+
+    // RSS Feeds
+    if (settings.rss?.feeds && Array.isArray(settings.rss.feeds) && settings.rss.feeds.length > 0) {
+      promises.push(
+        (async () => {
+          try {
+            const rssService = new RSSService();
+            dashboardData.rss = await rssService.getNews(settings.rss, 10);
+            console.log(`✓ Fetched ${dashboardData.rss.length} news from RSS feeds`);
+          } catch (error) {
+            console.error('Error fetching RSS data:', error);
+            dashboardData.rss = [];
+          }
+        })()
+      );
+    }
+
+    // Aguardar todas as requisições
+    await Promise.all(promises);
 
     res.json(dashboardData);
   } catch (error) {
