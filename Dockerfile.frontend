@@ -8,6 +8,9 @@ COPY package*.json yarn.lock ./
 # Instalar dependências
 RUN yarn install --frozen-lockfile --network-timeout 600000
 
+# IMPORTANTE: Forçar reinstalação do Rollup para garantir binário correto
+RUN yarn add rollup --force
+
 # Copiar código fonte
 COPY . .
 
