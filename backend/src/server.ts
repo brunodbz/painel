@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { TenableService } from './services/tenable';
 
 dotenv.config();
 
@@ -94,10 +95,49 @@ app.get('/api/health', async (req, res) => {
 // Dashboard data
 app.get('/api/dashboard', async (req, res) => {
   try {
-    res.json({
-      message: "Endpoint pronto para integração. Implementar lógica de agregação aqui.",
-      timestamp: new Date()
+    // Buscar configurações ativas do banco
+    const result = await pool.query(`
+      SELECT service_name, config_data
+      FROM api_settings
+      WHERE is_active = true
+    `);
+
+    const settings: any = {};
+    result.rows.forEach(row => {
+      settings[row.service_name] = row.config_data;
     });
+
+    // Inicializar dados vazios
+    const dashboardData: any = {
+      elastic: [],
+      defender: [],
+      opencti: [],
+      tenable: [],
+      rss: []
+    };
+
+    // Buscar dados do Tenable se configurado
+    if (settings.tenable && settings.tenable.accessKey && settings.tenable.secretKey) {
+      try {
+        const tenableService = new TenableService();
+        dashboardData.tenable = await tenableService.getVulnerabilities({
+          accessKey: settings.tenable.accessKey,
+          secretKey: settings.tenable.secretKey
+        }, 10);
+        console.log(`✓ Fetched ${dashboardData.tenable.length} vulnerabilities from Tenable`);
+      } catch (error) {
+        console.error('Error fetching Tenable data:', error);
+        dashboardData.tenable = [];
+      }
+    }
+
+    // Aqui você pode adicionar outras integrações:
+    // - Elastic
+    // - Defender
+    // - OpenCTI
+    // - RSS
+
+    res.json(dashboardData);
   } catch (error) {
     console.error('Error in /api/dashboard:', error);
     res.status(500).json({ error: 'Internal server error' });
