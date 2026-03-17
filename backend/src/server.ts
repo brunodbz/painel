@@ -1,8 +1,52 @@
-import express from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+
+type ElasticSettings = {
+  url?: string;
+  apiKey?: string;
+  username?: string;
+  password?: string;
+};
+
+type DefenderSettings = {
+  tenantId?: string;
+  clientId?: string;
+  clientSecret?: string;
+};
+
+type OpenCTISettings = {
+  url?: string;
+  apiKey?: string;
+  token?: string;
+};
+
+type TenableSettings = {
+  accessKey?: string;
+  secretKey?: string;
+};
+
+type RSSSettings = {
+  feeds?: string[];
+};
+
+type AppSettings = {
+  elastic?: ElasticSettings;
+  defender?: DefenderSettings;
+  opencti?: OpenCTISettings;
+  tenable?: TenableSettings;
+  rss?: RSSSettings;
+};
+
+type DashboardData = {
+  elastic: unknown[];
+  defender: unknown[];
+  opencti: unknown[];
+  tenable: unknown[];
+  rss: unknown[];
+};
 import { TenableService } from './services/tenable';
 import { ElasticService } from './services/elastic';
 import { DefenderService } from './services/defender';
@@ -87,7 +131,7 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date(),
       database: 'connected' 
     });
-  } catch (error) {
+  } catch {
     res.status(503).json({ 
       status: 'error', 
       timestamp: new Date(),
@@ -106,13 +150,13 @@ app.get('/api/dashboard', async (req, res) => {
       WHERE is_active = true
     `);
 
-    const settings: any = {};
+    const settings: AppSettings = {};
     result.rows.forEach(row => {
-      settings[row.service_name] = row.config_data;
+      settings[row.service_name as keyof AppSettings] = row.config_data;
     });
 
     // Inicializar dados vazios
-    const dashboardData: any = {
+    const dashboardData: DashboardData = {
       elastic: [],
       defender: [],
       opencti: [],
@@ -124,15 +168,20 @@ app.get('/api/dashboard', async (req, res) => {
     const promises = [];
 
     // Elasticsearch
-    if (settings.elastic?.url && (settings.elastic?.apiKey || (settings.elastic?.username && settings.elastic?.password))) {
+    if (settings.elastic?.url && (settings.elastic.apiKey || (settings.elastic.username && settings.elastic.password))) {
+      const elasticSettings = settings.elastic;
       promises.push(
         (async () => {
           try {
             const elasticService = new ElasticService();
-            const config = settings.elastic.apiKey 
-              ? { ...settings.elastic, username: '', password: settings.elastic.apiKey }
-              : settings.elastic;
-            dashboardData.elastic = await elasticService.getAlerts(config, 10);
+            const config = elasticSettings.apiKey
+              ? { ...elasticSettings, username: '', password: elasticSettings.apiKey }
+              : elasticSettings;
+            dashboardData.elastic = await elasticService.getAlerts({
+              url: config.url || '',
+              username: config.username || '',
+              password: config.password || '',
+            }, 10);
             console.log(`✓ Fetched ${dashboardData.elastic.length} alerts from Elasticsearch`);
           } catch (error) {
             console.error('Error fetching Elasticsearch data:', error);
@@ -143,12 +192,17 @@ app.get('/api/dashboard', async (req, res) => {
     }
 
     // Microsoft Defender
-    if (settings.defender?.tenantId && settings.defender?.clientId && settings.defender?.clientSecret) {
+    if (settings.defender?.tenantId && settings.defender.clientId && settings.defender.clientSecret) {
+      const defenderSettings = settings.defender;
       promises.push(
         (async () => {
           try {
             const defenderService = new DefenderService();
-            dashboardData.defender = await defenderService.getAlerts(settings.defender, 10);
+            dashboardData.defender = await defenderService.getAlerts({
+              tenantId: defenderSettings.tenantId || '',
+              clientId: defenderSettings.clientId || '',
+              clientSecret: defenderSettings.clientSecret || '',
+            }, 10);
             console.log(`✓ Fetched ${dashboardData.defender.length} alerts from Microsoft Defender`);
           } catch (error) {
             console.error('Error fetching Defender data:', error);
@@ -159,15 +213,16 @@ app.get('/api/dashboard', async (req, res) => {
     }
 
     // OpenCTI
-    if (settings.opencti?.url && (settings.opencti?.apiKey || settings.opencti?.token)) {
+    if (settings.opencti?.url && (settings.opencti.apiKey || settings.opencti.token)) {
+      const openCtiSettings = settings.opencti;
       promises.push(
         (async () => {
           try {
             const openctiService = new OpenCTIService();
-            const apiKey = settings.opencti?.apiKey || settings.opencti?.token;
+            const apiKey = openCtiSettings.apiKey || openCtiSettings.token || '';
             dashboardData.opencti = await openctiService.getThreats({ 
-              url: settings.opencti.url, 
-              apiKey 
+              url: openCtiSettings.url || '', 
+              apiKey
             }, 10);
             console.log(`✓ Fetched ${dashboardData.opencti.length} threats from OpenCTI`);
           } catch (error) {
@@ -179,14 +234,15 @@ app.get('/api/dashboard', async (req, res) => {
     }
 
     // Tenable
-    if (settings.tenable?.accessKey && settings.tenable?.secretKey) {
+    if (settings.tenable?.accessKey && settings.tenable.secretKey) {
+      const tenableSettings = settings.tenable;
       promises.push(
         (async () => {
           try {
             const tenableService = new TenableService();
             dashboardData.tenable = await tenableService.getVulnerabilities({
-              accessKey: settings.tenable.accessKey,
-              secretKey: settings.tenable.secretKey
+              accessKey: tenableSettings.accessKey || '',
+              secretKey: tenableSettings.secretKey || ''
             }, 10);
             console.log(`✓ Fetched ${dashboardData.tenable.length} vulnerabilities from Tenable`);
           } catch (error) {
@@ -199,11 +255,12 @@ app.get('/api/dashboard', async (req, res) => {
 
     // RSS Feeds
     if (settings.rss?.feeds && Array.isArray(settings.rss.feeds) && settings.rss.feeds.length > 0) {
+      const rssSettings = settings.rss;
       promises.push(
         (async () => {
           try {
             const rssService = new RSSService();
-            dashboardData.rss = await rssService.getNews(settings.rss, 10);
+            dashboardData.rss = await rssService.getNews({ feeds: rssSettings.feeds || [] }, 10);
             console.log(`✓ Fetched ${dashboardData.rss.length} news from RSS feeds`);
           } catch (error) {
             console.error('Error fetching RSS data:', error);
@@ -327,7 +384,7 @@ app.get('/api/settings', async (req, res) => {
       WHERE is_active = true
     `);
 
-    const settings: any = {
+    const settings: Record<string, Record<string, unknown> | null> = {
       elastic: null,
       defender: null,
       opencti: null,
@@ -418,7 +475,8 @@ app.delete('/api/settings/:service', async (req, res) => {
   }
 });
 
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  void next;
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });

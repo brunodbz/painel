@@ -52,15 +52,15 @@ export class TenableService {
         description: `Host: ${vuln.host_name || 'N/A'} | Plugin ID: ${vuln.plugin_id}`,
         timestamp: vuln.first_found || new Date().toISOString(),
       }));
-    } catch (error: any) {
-      if (error.response) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response) {
         console.error('Erro ao buscar vulnerabilidades do Tenable:', {
           status: error.response.status,
           statusText: error.response.statusText,
           data: error.response.data,
         });
       } else {
-        console.error('Erro ao buscar vulnerabilidades do Tenable:', error.message);
+        console.error('Erro ao buscar vulnerabilidades do Tenable:', error instanceof Error ? error.message : error);
       }
       return [];
     }
