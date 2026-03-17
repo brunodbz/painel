@@ -45,8 +45,8 @@ export class DefenderService {
       );
 
       return response.data.access_token;
-    } catch (error: any) {
-      console.error('Erro ao obter token do Defender:', error.message);
+    } catch (error: unknown) {
+      console.error('Erro ao obter token do Defender:', error instanceof Error ? error.message : error);
       return null;
     }
   }
@@ -96,15 +96,15 @@ export class DefenderService {
         description: `Host: ${alert.computerDnsName || 'N/A'} | ${alert.category || ''} | ${alert.description || alert.status}`,
         timestamp: alert.createdDateTime || new Date().toISOString(),
       }));
-    } catch (error: any) {
-      if (error.response) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response) {
         console.error('Erro ao buscar alertas do Defender:', {
           status: error.response.status,
           statusText: error.response.statusText,
           data: error.response.data,
         });
       } else {
-        console.error('Erro ao buscar alertas do Defender:', error.message);
+        console.error('Erro ao buscar alertas do Defender:', error instanceof Error ? error.message : error);
       }
       return [];
     }

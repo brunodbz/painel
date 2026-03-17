@@ -19,6 +19,10 @@ interface OpenCTIIndicator {
   indicator_types?: string[];
 }
 
+
+interface IndicatorEdge {
+  node: OpenCTIIndicator;
+}
 export class OpenCTIService {
   private getSeverityFromScore(score?: number, confidence?: number): 'critical' | 'high' | 'medium' | 'low' | 'info' {
     const effectiveScore = score || confidence || 50;
@@ -95,7 +99,7 @@ export class OpenCTIService {
       
       // Filtrar por score/confidence alto
       const filteredIndicators = edges
-        .map((edge: any) => edge.node as OpenCTIIndicator)
+        .map((edge: IndicatorEdge) => edge.node)
         .filter((indicator: OpenCTIIndicator) => 
           (indicator.x_opencti_score || 0) >= 50 || (indicator.confidence || 0) >= 50
         );
@@ -113,15 +117,15 @@ export class OpenCTIService {
           timestamp: indicator.modified || indicator.created || new Date().toISOString(),
         };
       });
-    } catch (error: any) {
-      if (error.response) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response) {
         console.error('Erro ao buscar ameaças do OpenCTI:', {
           status: error.response.status,
           statusText: error.response.statusText,
           data: error.response.data,
         });
       } else {
-        console.error('Erro ao buscar ameaças do OpenCTI:', error.message);
+        console.error('Erro ao buscar ameaças do OpenCTI:', error instanceof Error ? error.message : error);
       }
       return [];
     }

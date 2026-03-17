@@ -86,15 +86,15 @@ export class ElasticService {
         description: `Host: ${hit._source.host?.name || 'N/A'} | ${hit._source.message || 'Evento de segurança detectado'}`,
         timestamp: hit._source['@timestamp'] || new Date().toISOString(),
       }));
-    } catch (error: any) {
-      if (error.response) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response) {
         console.error('Erro ao buscar alertas do Elasticsearch:', {
           status: error.response.status,
           statusText: error.response.statusText,
           data: error.response.data,
         });
       } else {
-        console.error('Erro ao buscar alertas do Elasticsearch:', error.message);
+        console.error('Erro ao buscar alertas do Elasticsearch:', error instanceof Error ? error.message : error);
       }
       return [];
     }

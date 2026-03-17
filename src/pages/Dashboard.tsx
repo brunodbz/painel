@@ -5,7 +5,7 @@ import { SeverityBadge } from '../components/ui/SeverityBadge';
 import { AlertItem } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Activity, Database, Globe, Rss, Server, Shield } from 'lucide-react';
+import { Activity, Database, Globe, Rss, Shield } from 'lucide-react';
 
 const AlertList = ({ items }: { items: AlertItem[] }) => (
   <ul className="divide-y divide-slate-100">

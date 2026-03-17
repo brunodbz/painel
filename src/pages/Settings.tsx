@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { FieldError, Path, useForm, UseFormRegister } from 'react-hook-form';
 import { Card } from '../components/ui/Card';
 import { Server, Key, Save, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
@@ -16,6 +16,16 @@ type SettingsFormValues = {
   rssFeeds: string;
 };
 
+
+
+type InputGroupProps = {
+  label: string;
+  name: Path<SettingsFormValues>;
+  type?: 'text' | 'password';
+  placeholder: string;
+  error?: FieldError;
+  register: UseFormRegister<SettingsFormValues>;
+};
 export const Settings = () => {
   const { register, handleSubmit, formState: { errors, isSubmitting }, setValue, reset } = useForm<SettingsFormValues>();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -103,7 +113,7 @@ export const Settings = () => {
     }
   };
 
-  const InputGroup = ({ label, name, type = "text", placeholder, error }: any) => (
+  const InputGroup = ({ label, name, type = 'text', placeholder, error, register }: InputGroupProps) => (
     <div className="space-y-1.5">
       <label className="text-sm font-medium text-slate-700">{label}</label>
       <div className="relative">
@@ -158,17 +168,17 @@ export const Settings = () => {
         {/* Elastic Configuration */}
         <Card title="Elastic Search (On-Premise)" icon={<Server size={20} />} className="overflow-visible">
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InputGroup label="URL do Cluster" name="elasticUrl" placeholder="https://elastic.internal:9200" error={errors.elasticUrl} />
-            <InputGroup label="API Key" name="elasticKey" type="password" placeholder="••••••••••••" error={errors.elasticKey} />
+            <InputGroup label="URL do Cluster" name="elasticUrl" placeholder="https://elastic.internal:9200" error={errors.elasticUrl} register={register} />
+            <InputGroup label="API Key" name="elasticKey" type="password" placeholder="••••••••••••" error={errors.elasticKey} register={register} />
           </div>
         </Card>
 
         {/* Defender Configuration */}
         <Card title="Microsoft Defender 365" icon={<Key size={20} />} className="overflow-visible">
           <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <InputGroup label="Tenant ID" name="defenderTenantId" placeholder="Azure Tenant ID" error={errors.defenderTenantId} />
-            <InputGroup label="Client ID" name="defenderClientId" placeholder="App Client ID" error={errors.defenderClientId} />
-            <InputGroup label="Client Secret" name="defenderSecret" type="password" placeholder="••••••••••••" error={errors.defenderSecret} />
+            <InputGroup label="Tenant ID" name="defenderTenantId" placeholder="Azure Tenant ID" error={errors.defenderTenantId} register={register} />
+            <InputGroup label="Client ID" name="defenderClientId" placeholder="App Client ID" error={errors.defenderClientId} register={register} />
+            <InputGroup label="Client Secret" name="defenderSecret" type="password" placeholder="••••••••••••" error={errors.defenderSecret} register={register} />
           </div>
         </Card>
 
@@ -176,15 +186,15 @@ export const Settings = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card title="OpenCTI" icon={<Server size={20} />} className="overflow-visible">
             <div className="p-6 space-y-4">
-              <InputGroup label="URL da Plataforma" name="openCtiUrl" placeholder="https://opencti.local" error={errors.openCtiUrl} />
-              <InputGroup label="Auth Token" name="openCtiToken" type="password" placeholder="Bearer Token" error={errors.openCtiToken} />
+              <InputGroup label="URL da Plataforma" name="openCtiUrl" placeholder="https://opencti.local" error={errors.openCtiUrl} register={register} />
+              <InputGroup label="Auth Token" name="openCtiToken" type="password" placeholder="Bearer Token" error={errors.openCtiToken} register={register} />
             </div>
           </Card>
 
           <Card title="Tenable.io" icon={<Server size={20} />} className="overflow-visible">
             <div className="p-6 space-y-4">
-              <InputGroup label="Access Key" name="tenableAccessKey" placeholder="Tenable Access Key" error={errors.tenableAccessKey} />
-              <InputGroup label="Secret Key" name="tenableSecretKey" type="password" placeholder="Tenable Secret Key" error={errors.tenableSecretKey} />
+              <InputGroup label="Access Key" name="tenableAccessKey" placeholder="Tenable Access Key" error={errors.tenableAccessKey} register={register} />
+              <InputGroup label="Secret Key" name="tenableSecretKey" type="password" placeholder="Tenable Secret Key" error={errors.tenableSecretKey} register={register} />
             </div>
           </Card>
         </div>

@@ -43,7 +43,7 @@ export class RSSService {
 
   async getNews(config: RSSConfig, limit: number = 10) {
     try {
-      const allNews: any[] = [];
+      const allNews: RSSItem[] = [];
 
       // Buscar de todos os feeds em paralelo
       const feedPromises = config.feeds.map(async (feedUrl) => {
@@ -99,8 +99,8 @@ export class RSSService {
           link: item.link,
         };
       });
-    } catch (error: any) {
-      console.error('Erro ao buscar notícias RSS:', error.message);
+    } catch (error: unknown) {
+      console.error('Erro ao buscar notícias RSS:', error instanceof Error ? error.message : error);
       return [];
     }
   }
