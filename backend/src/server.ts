@@ -115,6 +115,48 @@ async function initializeDatabase() {
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Migração defensiva para bases legadas com colunas TEXT
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'api_settings'
+            AND column_name = 'config_data'
+            AND udt_name <> 'jsonb'
+        ) THEN
+          ALTER TABLE api_settings
+          ALTER COLUMN config_data TYPE JSONB
+          USING to_jsonb(config_data);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'settings_audit_log'
+            AND column_name = 'old_data'
+            AND udt_name <> 'jsonb'
+        ) THEN
+          ALTER TABLE settings_audit_log
+          ALTER COLUMN old_data TYPE JSONB
+          USING to_jsonb(old_data);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'settings_audit_log'
+            AND column_name = 'new_data'
+            AND udt_name <> 'jsonb'
+        ) THEN
+          ALTER TABLE settings_audit_log
+          ALTER COLUMN new_data TYPE JSONB
+          USING to_jsonb(new_data);
+        END IF;
+      END $$;
+    `);
     
     console.log('✓ Database tables initialized');
   } catch (error) {
@@ -301,62 +343,76 @@ app.post('/api/settings', async (req, res) => {
 
     // Salvar Elastic
     if (elasticUrl && elasticKey) {
+      const elasticConfig = JSON.stringify({ url: elasticUrl, apiKey: elasticKey });
       await client.query(`
         INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
+        VALUES ($1, $2::jsonb)
         ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['elastic', { url: elasticUrl, apiKey: elasticKey }]);
+        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+      `, ['elastic', elasticConfig]);
     }
 
     // Salvar Defender
     if (defenderTenantId && defenderClientId && defenderSecret) {
+      const defenderConfig = JSON.stringify({
+        tenantId: defenderTenantId,
+        clientId: defenderClientId,
+        clientSecret: defenderSecret,
+      });
       await client.query(`
         INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
+        VALUES ($1, $2::jsonb)
         ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['defender', { tenantId: defenderTenantId, clientId: defenderClientId, clientSecret: defenderSecret }]);
+        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+      `, ['defender', defenderConfig]);
     }
 
     // Salvar OpenCTI
     if (openCtiUrl && openCtiToken) {
+      const openCtiConfig = JSON.stringify({ url: openCtiUrl, token: openCtiToken });
       await client.query(`
         INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
+        VALUES ($1, $2::jsonb)
         ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['opencti', { url: openCtiUrl, token: openCtiToken }]);
+        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+      `, ['opencti', openCtiConfig]);
     }
 
     // Salvar Tenable
     if (tenableAccessKey && tenableSecretKey) {
+      const tenableConfig = JSON.stringify({ accessKey: tenableAccessKey, secretKey: tenableSecretKey });
       await client.query(`
         INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
+        VALUES ($1, $2::jsonb)
         ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['tenable', { accessKey: tenableAccessKey, secretKey: tenableSecretKey }]);
+        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+      `, ['tenable', tenableConfig]);
     }
 
     // Salvar RSS Feeds
     if (rssFeeds) {
       const feedsArray = rssFeeds.split('\n').filter((f: string) => f.trim());
+      const rssConfig = JSON.stringify({ feeds: feedsArray });
       await client.query(`
         INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
+        VALUES ($1, $2::jsonb)
         ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['rss', { feeds: feedsArray }]);
+        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+      `, ['rss', rssConfig]);
     }
 
-    // Log de auditoria
-    await client.query(`
-      INSERT INTO settings_audit_log (service_name, action, new_data)
-      VALUES ($1, $2, $3)
-    `, ['all', 'UPDATE', req.body]);
-
     await client.query('COMMIT');
+
+    // Log de auditoria (best effort: não deve quebrar o save principal)
+    try {
+      const auditPayload = JSON.stringify(req.body ?? {});
+      await pool.query(`
+        INSERT INTO settings_audit_log (service_name, action, new_data)
+        VALUES ($1, $2, $3::jsonb)
+      `, ['all', 'UPDATE', auditPayload]);
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
     
     res.json({ 
       success: true, 
