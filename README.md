@@ -106,6 +106,7 @@ Acesse: `http://localhost/`
 - **[CONFIGURACAO_APIS.md](CONFIGURACAO_APIS.md)** ⭐ - Como configurar cada API
 - **[DEPLOY_INTEGRACOES.md](DEPLOY_INTEGRACOES.md)** - Deploy das integrações
 - **[DEPLOY_NO_SERVIDOR.md](DEPLOY_NO_SERVIDOR.md)** - Deploy em servidor Ubuntu
+- **[INSTALACAO_UBUNTU.md](INSTALACAO_UBUNTU.md)** - Instalação e configuração padrão (Ubuntu)
 
 ### 🐛 Troubleshooting
 
