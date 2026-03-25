@@ -55,6 +55,14 @@ import { RSSService } from './services/rss';
 
 dotenv.config();
 
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
