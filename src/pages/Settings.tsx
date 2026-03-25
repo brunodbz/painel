@@ -100,12 +100,13 @@ export const Settings = () => {
           setSaveStatus('idle');
         }, 5000);
       } else {
-        throw new Error(result.error || 'Erro ao salvar');
+        const serverMessage = [result.error, result.details].filter(Boolean).join(': ');
+        throw new Error(serverMessage || 'Erro ao salvar');
       }
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
       setSaveStatus('error');
-      setSaveMessage('Erro ao salvar configurações. Tente novamente.');
+      setSaveMessage(error instanceof Error ? error.message : 'Erro ao salvar configurações. Tente novamente.');
       
       setTimeout(() => {
         setSaveStatus('idle');
