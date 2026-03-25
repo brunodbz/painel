@@ -45,7 +45,12 @@ export class ElasticService {
       const httpsAgent = baseUrl.startsWith('https://')
         ? new https.Agent({ rejectUnauthorized: false })
         : undefined;
-      const searchTargets = [`${configuredIndex}/_search`, '_search'];
+      const searchTargets = [
+        `${configuredIndex}/_search`,
+        '_search',
+        `elasticsearch/${configuredIndex}/_search`,
+        'elasticsearch/_search',
+      ];
 
       for (const target of searchTargets) {
         try {
