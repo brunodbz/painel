@@ -15,9 +15,7 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
     // Se a API retornar dados no formato correto, use-os
     // Senão, retorne estrutura vazia
     return {
-      elastic: result.elastic || [],
       defender: result.defender || [],
-      opencti: result.opencti || [],
       tenable: result.tenable || [],
       rss: result.rss || [],
     };
@@ -25,9 +23,7 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
     console.error('Erro ao buscar dados do dashboard:', error);
     // Retornar estrutura vazia em caso de erro
     return {
-      elastic: [],
       defender: [],
-      opencti: [],
       tenable: [],
       rss: [],
     };
