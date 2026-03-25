@@ -86,7 +86,7 @@ export const Dashboard = () => {
         <Card 
           title="Cyber Security News (RSS)" 
           icon={<Rss size={20} className="text-emerald-600" />}
-          className="xl:col-span-1 border-t-4 border-t-emerald-500"
+          className="xl:col-span-2 border-t-4 border-t-emerald-500"
         >
           <AlertList items={latestAlerts.rss} />
         </Card>
