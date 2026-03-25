@@ -36,6 +36,19 @@ export class OpenCTIService {
 
   async getThreats(config: OpenCTIConfig, limit: number = 10) {
     try {
+      const normalizedBaseUrl = config.url.replace(/\/+$/, '');
+      const candidateUrls = [normalizedBaseUrl];
+
+      try {
+        const parsed = new URL(normalizedBaseUrl);
+        if (parsed.hostname.endsWith('.local')) {
+          const dockerFallback = `${parsed.protocol}//host.docker.internal${parsed.port ? `:${parsed.port}` : ''}`;
+          candidateUrls.push(dockerFallback);
+        }
+      } catch {
+        // URL inválida: mantém somente a URL original normalizada
+      }
+
       // Query GraphQL para buscar indicadores recentes
       const query = `
         query GetIndicators($first: Int!) {
@@ -81,21 +94,49 @@ export class OpenCTIService {
         }
       `;
 
-      const response = await axios.post(
-        `${config.url}/graphql`,
-        {
-          query,
-          variables: { first: limit * 2 },
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${config.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      let edges: IndicatorEdge[] = [];
+      let lastError: unknown = null;
 
-      const edges = response.data.data?.indicators?.edges || [];
+      for (const baseUrl of candidateUrls) {
+        try {
+          const response = await axios.post(
+            `${baseUrl}/graphql`,
+            {
+              query,
+              variables: { first: limit * 2 },
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${config.apiKey}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          edges = response.data.data?.indicators?.edges || [];
+          lastError = null;
+          break;
+        } catch (error: unknown) {
+          lastError = error;
+          if (axios.isAxiosError(error) && error.response) {
+            console.error('Erro ao buscar ameaças do OpenCTI:', {
+              baseUrl,
+              status: error.response.status,
+              statusText: error.response.statusText,
+              data: error.response.data,
+            });
+          } else {
+            console.error('Erro ao buscar ameaças do OpenCTI:', {
+              baseUrl,
+              error: error instanceof Error ? error.message : error,
+            });
+          }
+        }
+      }
+
+      if (lastError) {
+        return [];
+      }
       
       // Filtrar por score/confidence alto
       const filteredIndicators = edges
