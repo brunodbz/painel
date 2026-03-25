@@ -324,10 +324,7 @@ app.get('/api/dashboard', async (req, res) => {
 
 // Salvar configurações
 app.post('/api/settings', async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    
     const {
       elasticUrl,
       elasticKey,
@@ -341,67 +338,47 @@ app.post('/api/settings', async (req, res) => {
       rssFeeds
     } = req.body;
 
-    // Salvar Elastic
-    if (elasticUrl && elasticKey) {
-      const elasticConfig = JSON.stringify({ url: elasticUrl, apiKey: elasticKey });
-      await client.query(`
+    const upsertSetting = async (serviceName: string, config: Record<string, unknown>) => {
+      await pool.query(`
         INSERT INTO api_settings (service_name, config_data)
         VALUES ($1, $2::jsonb)
         ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
-      `, ['elastic', elasticConfig]);
+        DO UPDATE SET config_data = $2::jsonb, is_active = true, updated_at = CURRENT_TIMESTAMP
+      `, [serviceName, JSON.stringify(config)]);
+    };
+
+    // Salvar Elastic
+    if (elasticUrl && elasticKey) {
+      await upsertSetting('elastic', { url: elasticUrl, apiKey: elasticKey });
     }
 
     // Salvar Defender
     if (defenderTenantId && defenderClientId && defenderSecret) {
-      const defenderConfig = JSON.stringify({
+      await upsertSetting('defender', {
         tenantId: defenderTenantId,
         clientId: defenderClientId,
         clientSecret: defenderSecret,
       });
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2::jsonb)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
-      `, ['defender', defenderConfig]);
     }
 
     // Salvar OpenCTI
     if (openCtiUrl && openCtiToken) {
-      const openCtiConfig = JSON.stringify({ url: openCtiUrl, token: openCtiToken });
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2::jsonb)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
-      `, ['opencti', openCtiConfig]);
+      await upsertSetting('opencti', { url: openCtiUrl, token: openCtiToken });
     }
 
     // Salvar Tenable
     if (tenableAccessKey && tenableSecretKey) {
-      const tenableConfig = JSON.stringify({ accessKey: tenableAccessKey, secretKey: tenableSecretKey });
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2::jsonb)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
-      `, ['tenable', tenableConfig]);
+      await upsertSetting('tenable', { accessKey: tenableAccessKey, secretKey: tenableSecretKey });
     }
 
     // Salvar RSS Feeds
     if (rssFeeds) {
-      const feedsArray = rssFeeds.split('\n').filter((f: string) => f.trim());
-      const rssConfig = JSON.stringify({ feeds: feedsArray });
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2::jsonb)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2::jsonb, updated_at = CURRENT_TIMESTAMP
-      `, ['rss', rssConfig]);
+      const feedsArray = rssFeeds
+        .split(/\r?\n/)
+        .map((f: string) => f.trim())
+        .filter(Boolean);
+      await upsertSetting('rss', { feeds: feedsArray });
     }
-
-    await client.query('COMMIT');
 
     // Log de auditoria (best effort: não deve quebrar o save principal)
     try {
@@ -420,14 +397,12 @@ app.post('/api/settings', async (req, res) => {
       timestamp: new Date()
     });
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Error saving settings:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Erro ao salvar configurações' 
+      error: 'Erro ao salvar configurações',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
-  } finally {
-    client.release();
   }
 });
 
