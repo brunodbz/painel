@@ -96,9 +96,10 @@ async function testDatabaseConnection() {
     await pool.query('SELECT NOW()');
     console.log('✓ Database connected successfully');
     await initializeDatabase();
+    return true;
   } catch (error) {
     console.error('✗ Database connection failed:', error);
-    process.exit(1);
+    return false;
   }
 }
 
@@ -525,9 +526,20 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-testDatabaseConnection().then(() => {
-  app.listen(PORT, () => {
-    console.log(`✓ Server running on port ${PORT}`);
-    console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+app.listen(PORT, async () => {
+  console.log(`✓ Server running on port ${PORT}`);
+  console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  const connected = await testDatabaseConnection();
+  if (!connected) {
+    console.warn('⚠ Backend iniciado sem conexão com banco. Tentando reconectar em background...');
+
+    const retryInterval = setInterval(async () => {
+      const retryConnected = await testDatabaseConnection();
+      if (retryConnected) {
+        console.log('✓ Reconexão com banco realizada com sucesso');
+        clearInterval(retryInterval);
+      }
+    }, 10000);
+  }
 });
