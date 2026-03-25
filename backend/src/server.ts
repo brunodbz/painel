@@ -310,7 +310,8 @@ app.post('/api/settings', async (req, res) => {
   try {
     const {
       elasticUrl,
-      elasticKey,
+      elasticUsername,
+      elasticPassword,
       defenderTenantId,
       defenderClientId,
       defenderSecret,
@@ -329,8 +330,12 @@ app.post('/api/settings', async (req, res) => {
     };
 
     // Salvar Elastic
-    if (elasticUrl && elasticKey) {
-      await upsertSetting('elastic', { url: elasticUrl, apiKey: elasticKey });
+    if (elasticUrl && elasticUsername && elasticPassword) {
+      await upsertSetting('elastic', {
+        url: elasticUrl,
+        username: elasticUsername,
+        password: elasticPassword,
+      });
     }
 
     // Salvar Defender

@@ -5,7 +5,8 @@ import { Server, Key, Save, CheckCircle, AlertCircle, Loader } from 'lucide-reac
 
 type SettingsFormValues = {
   elasticUrl: string;
-  elasticKey: string;
+  elasticUsername: string;
+  elasticPassword: string;
   defenderTenantId: string;
   defenderClientId: string;
   defenderSecret: string;
@@ -69,7 +70,8 @@ export const Settings = () => {
 
         if (elastic) {
           setValue('elasticUrl', elastic.url || '');
-          setValue('elasticKey', elastic.apiKey || '');
+          setValue('elasticUsername', elastic.username || '');
+          setValue('elasticPassword', elastic.password || elastic.apiKey || '');
         }
         if (defender) {
           setValue('defenderTenantId', defender.tenantId || '');
@@ -187,7 +189,8 @@ export const Settings = () => {
         <Card title="Elastic Search (On-Premise)" icon={<Server size={20} />} className="overflow-visible">
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputGroup label="URL do Cluster" name="elasticUrl" placeholder="https://elastic.internal:9200" error={errors.elasticUrl} register={register} />
-            <InputGroup label="API Key" name="elasticKey" type="password" placeholder="••••••••••••" error={errors.elasticKey} register={register} />
+            <InputGroup label="Usuário" name="elasticUsername" placeholder="elastic_user" error={errors.elasticUsername} register={register} />
+            <InputGroup label="Senha" name="elasticPassword" type="password" placeholder="••••••••••••" error={errors.elasticPassword} register={register} />
           </div>
         </Card>
 
