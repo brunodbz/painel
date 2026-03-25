@@ -30,6 +30,13 @@ const AlertList = ({ items }: { items: AlertItem[] }) => (
 
 export const Dashboard = () => {
   const { data, loading, lastUpdated } = usePolling(30000);
+  const latestAlerts = {
+    elastic: data?.elastic.slice(0, 5) ?? [],
+    defender: data?.defender.slice(0, 5) ?? [],
+    tenable: data?.tenable.slice(0, 5) ?? [],
+    opencti: data?.opencti.slice(0, 5) ?? [],
+    rss: data?.rss.slice(0, 5) ?? [],
+  };
 
   if (loading || !data) {
     return (
@@ -65,7 +72,7 @@ export const Dashboard = () => {
           icon={<Database size={20} className="text-pink-600" />}
           className="xl:col-span-1 border-t-4 border-t-pink-500"
         >
-          <AlertList items={data.elastic} />
+          <AlertList items={latestAlerts.elastic} />
         </Card>
 
         {/* Microsoft Defender */}
@@ -74,7 +81,7 @@ export const Dashboard = () => {
           icon={<Shield size={20} className="text-blue-600" />}
           className="xl:col-span-1 border-t-4 border-t-blue-500"
         >
-          <AlertList items={data.defender} />
+          <AlertList items={latestAlerts.defender} />
         </Card>
 
         {/* Tenable.io */}
@@ -83,7 +90,7 @@ export const Dashboard = () => {
           icon={<Activity size={20} className="text-amber-600" />}
           className="xl:col-span-1 border-t-4 border-t-amber-500"
         >
-          <AlertList items={data.tenable} />
+          <AlertList items={latestAlerts.tenable} />
         </Card>
 
         {/* OpenCTI */}
@@ -92,10 +99,7 @@ export const Dashboard = () => {
           icon={<Globe size={20} className="text-indigo-600" />}
           className="xl:col-span-2 border-t-4 border-t-indigo-500"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <AlertList items={data.opencti.slice(0, 3)} />
-             <AlertList items={data.opencti.slice(3, 6)} />
-          </div>
+          <AlertList items={latestAlerts.opencti} />
         </Card>
 
         {/* RSS Feeds */}
@@ -104,7 +108,7 @@ export const Dashboard = () => {
           icon={<Rss size={20} className="text-emerald-600" />}
           className="xl:col-span-1 border-t-4 border-t-emerald-500"
         >
-          <AlertList items={data.rss} />
+          <AlertList items={latestAlerts.rss} />
         </Card>
       </div>
     </div>
