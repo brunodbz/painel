@@ -1,4 +1,5 @@
 import axios from 'axios';
+import https from 'https';
 
 interface ElasticConfig {
   url: string;
@@ -40,10 +41,14 @@ export class ElasticService {
     try {
       const index = config.index || 'logs-*';
       const auth = Buffer.from(`${config.username}:${config.password}`).toString('base64');
+      const baseUrl = config.url.replace(/\/+$/, '');
+      const httpsAgent = baseUrl.startsWith('https://')
+        ? new https.Agent({ rejectUnauthorized: false })
+        : undefined;
 
       // Query para buscar alertas recentes
       const response = await axios.post(
-        `${config.url}/${index}/_search`,
+        `${baseUrl}/${index}/_search`,
         {
           size: limit * 2, // Buscar mais para filtrar depois
           sort: [{ '@timestamp': 'desc' }],
@@ -73,6 +78,7 @@ export class ElasticService {
             'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/json',
           },
+          httpsAgent,
         }
       );
 
