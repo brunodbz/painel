@@ -17,7 +17,6 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
     return {
       elastic: result.elastic || [],
       defender: result.defender || [],
-      opencti: result.opencti || [],
       tenable: result.tenable || [],
       rss: result.rss || [],
     };
@@ -27,7 +26,6 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
     return {
       elastic: [],
       defender: [],
-      opencti: [],
       tenable: [],
       rss: [],
     };
