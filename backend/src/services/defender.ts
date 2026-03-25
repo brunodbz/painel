@@ -12,6 +12,7 @@ interface DefenderAlert {
   severity: string;
   status: string;
   createdDateTime: string;
+  alertCreationTime?: string;
   description?: string;
   machineId?: string;
   computerDnsName?: string;
@@ -116,9 +117,9 @@ export class DefenderService {
             },
             params: {
               $top: limit * 2, // Buscar mais para filtrar
-              $filter: "status ne 'Resolved' and createdDateTime ge " +
+              $filter: "status ne 'Resolved' and alertCreationTime ge " +
                        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-              $orderby: 'createdDateTime desc',
+              $orderby: 'alertCreationTime desc',
             },
           });
 
@@ -149,7 +150,7 @@ export class DefenderService {
         severity: this.getSeverityLevel(alert.severity),
         title: alert.title || 'Alerta de Segurança',
         description: `Host: ${alert.computerDnsName || 'N/A'} | ${alert.category || ''} | ${alert.description || alert.status}`,
-        timestamp: alert.createdDateTime || new Date().toISOString(),
+        timestamp: alert.alertCreationTime || alert.createdDateTime || new Date().toISOString(),
       }));
     } catch (error: unknown) {
       console.error('Erro inesperado no serviço Defender:', error instanceof Error ? error.message : error);
