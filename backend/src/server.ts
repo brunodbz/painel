@@ -17,12 +17,6 @@ type DefenderSettings = {
   clientSecret?: string;
 };
 
-type OpenCTISettings = {
-  url?: string;
-  apiKey?: string;
-  token?: string;
-};
-
 type TenableSettings = {
   accessKey?: string;
   secretKey?: string;
@@ -35,7 +29,6 @@ type RSSSettings = {
 type AppSettings = {
   elastic?: ElasticSettings;
   defender?: DefenderSettings;
-  opencti?: OpenCTISettings;
   tenable?: TenableSettings;
   rss?: RSSSettings;
 };
@@ -43,17 +36,23 @@ type AppSettings = {
 type DashboardData = {
   elastic: unknown[];
   defender: unknown[];
-  opencti: unknown[];
   tenable: unknown[];
   rss: unknown[];
 };
 import { TenableService } from './services/tenable';
 import { ElasticService } from './services/elastic';
 import { DefenderService } from './services/defender';
-import { OpenCTIService } from './services/opencti';
 import { RSSService } from './services/rss';
 
 dotenv.config();
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -72,6 +71,11 @@ app.use(express.json());
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
+  query_timeout: 15000,
+  statement_timeout: 15000,
+  keepAlive: true,
 });
 
 pool.on('error', (err) => {
@@ -83,9 +87,10 @@ async function testDatabaseConnection() {
     await pool.query('SELECT NOW()');
     console.log('✓ Database connected successfully');
     await initializeDatabase();
+    return true;
   } catch (error) {
     console.error('✗ Database connection failed:', error);
-    process.exit(1);
+    return false;
   }
 }
 
@@ -114,6 +119,48 @@ async function initializeDatabase() {
         new_data JSONB,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Migração defensiva para bases legadas com colunas TEXT
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'api_settings'
+            AND column_name = 'config_data'
+            AND udt_name <> 'jsonb'
+        ) THEN
+          ALTER TABLE api_settings
+          ALTER COLUMN config_data TYPE JSONB
+          USING to_jsonb(config_data);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'settings_audit_log'
+            AND column_name = 'old_data'
+            AND udt_name <> 'jsonb'
+        ) THEN
+          ALTER TABLE settings_audit_log
+          ALTER COLUMN old_data TYPE JSONB
+          USING to_jsonb(old_data);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'settings_audit_log'
+            AND column_name = 'new_data'
+            AND udt_name <> 'jsonb'
+        ) THEN
+          ALTER TABLE settings_audit_log
+          ALTER COLUMN new_data TYPE JSONB
+          USING to_jsonb(new_data);
+        END IF;
+      END $$;
     `);
     
     console.log('✓ Database tables initialized');
@@ -159,7 +206,6 @@ app.get('/api/dashboard', async (req, res) => {
     const dashboardData: DashboardData = {
       elastic: [],
       defender: [],
-      opencti: [],
       tenable: [],
       rss: []
     };
@@ -207,27 +253,6 @@ app.get('/api/dashboard', async (req, res) => {
           } catch (error) {
             console.error('Error fetching Defender data:', error);
             dashboardData.defender = [];
-          }
-        })()
-      );
-    }
-
-    // OpenCTI
-    if (settings.opencti?.url && (settings.opencti.apiKey || settings.opencti.token)) {
-      const openCtiSettings = settings.opencti;
-      promises.push(
-        (async () => {
-          try {
-            const openctiService = new OpenCTIService();
-            const apiKey = openCtiSettings.apiKey || openCtiSettings.token || '';
-            dashboardData.opencti = await openctiService.getThreats({ 
-              url: openCtiSettings.url || '', 
-              apiKey
-            }, 10);
-            console.log(`✓ Fetched ${dashboardData.opencti.length} threats from OpenCTI`);
-          } catch (error) {
-            console.error('Error fetching OpenCTI data:', error);
-            dashboardData.opencti = [];
           }
         })()
       );
@@ -282,81 +307,65 @@ app.get('/api/dashboard', async (req, res) => {
 
 // Salvar configurações
 app.post('/api/settings', async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    
     const {
       elasticUrl,
       elasticKey,
       defenderTenantId,
       defenderClientId,
       defenderSecret,
-      openCtiUrl,
-      openCtiToken,
       tenableAccessKey,
       tenableSecretKey,
       rssFeeds
     } = req.body;
 
+    const upsertSetting = async (serviceName: string, config: Record<string, unknown>) => {
+      await pool.query(`
+        INSERT INTO api_settings (service_name, config_data)
+        VALUES ($1, $2::jsonb)
+        ON CONFLICT (service_name) 
+        DO UPDATE SET config_data = $2::jsonb, is_active = true, updated_at = CURRENT_TIMESTAMP
+      `, [serviceName, JSON.stringify(config)]);
+    };
+
     // Salvar Elastic
     if (elasticUrl && elasticKey) {
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['elastic', { url: elasticUrl, apiKey: elasticKey }]);
+      await upsertSetting('elastic', { url: elasticUrl, apiKey: elasticKey });
     }
 
     // Salvar Defender
     if (defenderTenantId && defenderClientId && defenderSecret) {
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['defender', { tenantId: defenderTenantId, clientId: defenderClientId, clientSecret: defenderSecret }]);
-    }
-
-    // Salvar OpenCTI
-    if (openCtiUrl && openCtiToken) {
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['opencti', { url: openCtiUrl, token: openCtiToken }]);
+      await upsertSetting('defender', {
+        tenantId: defenderTenantId,
+        clientId: defenderClientId,
+        clientSecret: defenderSecret,
+      });
     }
 
     // Salvar Tenable
     if (tenableAccessKey && tenableSecretKey) {
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['tenable', { accessKey: tenableAccessKey, secretKey: tenableSecretKey }]);
+      await upsertSetting('tenable', { accessKey: tenableAccessKey, secretKey: tenableSecretKey });
     }
 
     // Salvar RSS Feeds
     if (rssFeeds) {
-      const feedsArray = rssFeeds.split('\n').filter((f: string) => f.trim());
-      await client.query(`
-        INSERT INTO api_settings (service_name, config_data)
-        VALUES ($1, $2)
-        ON CONFLICT (service_name) 
-        DO UPDATE SET config_data = $2, updated_at = CURRENT_TIMESTAMP
-      `, ['rss', { feeds: feedsArray }]);
+      const feedsArray = rssFeeds
+        .split(/\r?\n/)
+        .map((f: string) => f.trim())
+        .filter(Boolean);
+      await upsertSetting('rss', { feeds: feedsArray });
     }
 
-    // Log de auditoria
-    await client.query(`
-      INSERT INTO settings_audit_log (service_name, action, new_data)
-      VALUES ($1, $2, $3)
-    `, ['all', 'UPDATE', req.body]);
-
-    await client.query('COMMIT');
+    // Log de auditoria (best effort: não deve quebrar o save principal)
+    try {
+      const auditPayload = JSON.stringify(req.body ?? {});
+      await pool.query(`
+        INSERT INTO settings_audit_log (service_name, action, new_data)
+        VALUES ($1, $2, $3::jsonb)
+      `, ['all', 'UPDATE', auditPayload]);
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
     
     res.json({ 
       success: true, 
@@ -364,14 +373,12 @@ app.post('/api/settings', async (req, res) => {
       timestamp: new Date()
     });
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Error saving settings:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Erro ao salvar configurações' 
+      error: 'Erro ao salvar configurações',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
-  } finally {
-    client.release();
   }
 });
 
@@ -387,7 +394,6 @@ app.get('/api/settings', async (req, res) => {
     const settings: Record<string, Record<string, unknown> | null> = {
       elastic: null,
       defender: null,
-      opencti: null,
       tenable: null,
       rss: null
     };
@@ -481,9 +487,20 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-testDatabaseConnection().then(() => {
-  app.listen(PORT, () => {
-    console.log(`✓ Server running on port ${PORT}`);
-    console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+app.listen(PORT, async () => {
+  console.log(`✓ Server running on port ${PORT}`);
+  console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  const connected = await testDatabaseConnection();
+  if (!connected) {
+    console.warn('⚠ Backend iniciado sem conexão com banco. Tentando reconectar em background...');
+
+    const retryInterval = setInterval(async () => {
+      const retryConnected = await testDatabaseConnection();
+      if (retryConnected) {
+        console.log('✓ Reconexão com banco realizada com sucesso');
+        clearInterval(retryInterval);
+      }
+    }, 10000);
+  }
 });

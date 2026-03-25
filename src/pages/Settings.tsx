@@ -9,8 +9,6 @@ type SettingsFormValues = {
   defenderTenantId: string;
   defenderClientId: string;
   defenderSecret: string;
-  openCtiUrl: string;
-  openCtiToken: string;
   tenableAccessKey: string;
   tenableSecretKey: string;
   rssFeeds: string;
@@ -37,14 +35,37 @@ export const Settings = () => {
     loadSettings();
   }, []);
 
+  const parseApiResponse = async (response: Response) => {
+    const contentType = response.headers.get('content-type') || '';
+    const responseText = await response.text();
+
+    if (contentType.includes('application/json')) {
+      try {
+        return JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          error: `Resposta JSON inválida (HTTP ${response.status})`,
+          details: responseText.slice(0, 200),
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: `Resposta inválida do servidor (HTTP ${response.status})`,
+      details: responseText.slice(0, 200),
+    };
+  };
+
   const loadSettings = async () => {
     try {
       setIsLoading(true);
       const response = await fetch('/api/settings');
-      const result = await response.json();
+      const result = await parseApiResponse(response);
 
       if (result.success && result.data) {
-        const { elastic, defender, opencti, tenable, rss } = result.data;
+        const { elastic, defender, tenable, rss } = result.data;
 
         if (elastic) {
           setValue('elasticUrl', elastic.url || '');
@@ -54,10 +75,6 @@ export const Settings = () => {
           setValue('defenderTenantId', defender.tenantId || '');
           setValue('defenderClientId', defender.clientId || '');
           setValue('defenderSecret', defender.clientSecret || '');
-        }
-        if (opencti) {
-          setValue('openCtiUrl', opencti.url || '');
-          setValue('openCtiToken', opencti.token || '');
         }
         if (tenable) {
           setValue('tenableAccessKey', tenable.accessKey || '');
@@ -70,7 +87,7 @@ export const Settings = () => {
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
       setSaveStatus('error');
-      setSaveMessage('Erro ao carregar configurações existentes');
+      setSaveMessage(error instanceof Error ? error.message : 'Erro ao carregar configurações existentes');
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +106,7 @@ export const Settings = () => {
         body: JSON.stringify(data),
       });
 
-      const result = await response.json();
+      const result = await parseApiResponse(response);
 
       if (result.success) {
         setSaveStatus('success');
@@ -100,12 +117,13 @@ export const Settings = () => {
           setSaveStatus('idle');
         }, 5000);
       } else {
-        throw new Error(result.error || 'Erro ao salvar');
+        const serverMessage = [result.error, result.details].filter(Boolean).join(': ');
+        throw new Error(serverMessage || 'Erro ao salvar');
       }
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
       setSaveStatus('error');
-      setSaveMessage('Erro ao salvar configurações. Tente novamente.');
+      setSaveMessage(error instanceof Error ? error.message : 'Erro ao salvar configurações. Tente novamente.');
       
       setTimeout(() => {
         setSaveStatus('idle');
@@ -182,15 +200,8 @@ export const Settings = () => {
           </div>
         </Card>
 
-        {/* OpenCTI & Tenable */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card title="OpenCTI" icon={<Server size={20} />} className="overflow-visible">
-            <div className="p-6 space-y-4">
-              <InputGroup label="URL da Plataforma" name="openCtiUrl" placeholder="https://opencti.local" error={errors.openCtiUrl} register={register} />
-              <InputGroup label="Auth Token" name="openCtiToken" type="password" placeholder="Bearer Token" error={errors.openCtiToken} register={register} />
-            </div>
-          </Card>
-
+        {/* Tenable */}
+        <div className="grid grid-cols-1 gap-6">
           <Card title="Tenable.io" icon={<Server size={20} />} className="overflow-visible">
             <div className="p-6 space-y-4">
               <InputGroup label="Access Key" name="tenableAccessKey" placeholder="Tenable Access Key" error={errors.tenableAccessKey} register={register} />
