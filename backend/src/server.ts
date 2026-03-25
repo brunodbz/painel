@@ -17,12 +17,6 @@ type DefenderSettings = {
   clientSecret?: string;
 };
 
-type OpenCTISettings = {
-  url?: string;
-  apiKey?: string;
-  token?: string;
-};
-
 type TenableSettings = {
   accessKey?: string;
   secretKey?: string;
@@ -35,7 +29,6 @@ type RSSSettings = {
 type AppSettings = {
   elastic?: ElasticSettings;
   defender?: DefenderSettings;
-  opencti?: OpenCTISettings;
   tenable?: TenableSettings;
   rss?: RSSSettings;
 };
@@ -43,14 +36,12 @@ type AppSettings = {
 type DashboardData = {
   elastic: unknown[];
   defender: unknown[];
-  opencti: unknown[];
   tenable: unknown[];
   rss: unknown[];
 };
 import { TenableService } from './services/tenable';
 import { ElasticService } from './services/elastic';
 import { DefenderService } from './services/defender';
-import { OpenCTIService } from './services/opencti';
 import { RSSService } from './services/rss';
 
 dotenv.config();
@@ -215,7 +206,6 @@ app.get('/api/dashboard', async (req, res) => {
     const dashboardData: DashboardData = {
       elastic: [],
       defender: [],
-      opencti: [],
       tenable: [],
       rss: []
     };
@@ -263,27 +253,6 @@ app.get('/api/dashboard', async (req, res) => {
           } catch (error) {
             console.error('Error fetching Defender data:', error);
             dashboardData.defender = [];
-          }
-        })()
-      );
-    }
-
-    // OpenCTI
-    if (settings.opencti?.url && (settings.opencti.apiKey || settings.opencti.token)) {
-      const openCtiSettings = settings.opencti;
-      promises.push(
-        (async () => {
-          try {
-            const openctiService = new OpenCTIService();
-            const apiKey = openCtiSettings.apiKey || openCtiSettings.token || '';
-            dashboardData.opencti = await openctiService.getThreats({ 
-              url: openCtiSettings.url || '', 
-              apiKey
-            }, 10);
-            console.log(`✓ Fetched ${dashboardData.opencti.length} threats from OpenCTI`);
-          } catch (error) {
-            console.error('Error fetching OpenCTI data:', error);
-            dashboardData.opencti = [];
           }
         })()
       );
@@ -345,8 +314,6 @@ app.post('/api/settings', async (req, res) => {
       defenderTenantId,
       defenderClientId,
       defenderSecret,
-      openCtiUrl,
-      openCtiToken,
       tenableAccessKey,
       tenableSecretKey,
       rssFeeds
@@ -373,11 +340,6 @@ app.post('/api/settings', async (req, res) => {
         clientId: defenderClientId,
         clientSecret: defenderSecret,
       });
-    }
-
-    // Salvar OpenCTI
-    if (openCtiUrl && openCtiToken) {
-      await upsertSetting('opencti', { url: openCtiUrl, token: openCtiToken });
     }
 
     // Salvar Tenable
@@ -432,7 +394,6 @@ app.get('/api/settings', async (req, res) => {
     const settings: Record<string, Record<string, unknown> | null> = {
       elastic: null,
       defender: null,
-      opencti: null,
       tenable: null,
       rss: null
     };

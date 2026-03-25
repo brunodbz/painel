@@ -9,8 +9,6 @@ type SettingsFormValues = {
   defenderTenantId: string;
   defenderClientId: string;
   defenderSecret: string;
-  openCtiUrl: string;
-  openCtiToken: string;
   tenableAccessKey: string;
   tenableSecretKey: string;
   rssFeeds: string;
@@ -67,7 +65,7 @@ export const Settings = () => {
       const result = await parseApiResponse(response);
 
       if (result.success && result.data) {
-        const { elastic, defender, opencti, tenable, rss } = result.data;
+        const { elastic, defender, tenable, rss } = result.data;
 
         if (elastic) {
           setValue('elasticUrl', elastic.url || '');
@@ -77,10 +75,6 @@ export const Settings = () => {
           setValue('defenderTenantId', defender.tenantId || '');
           setValue('defenderClientId', defender.clientId || '');
           setValue('defenderSecret', defender.clientSecret || '');
-        }
-        if (opencti) {
-          setValue('openCtiUrl', opencti.url || '');
-          setValue('openCtiToken', opencti.token || '');
         }
         if (tenable) {
           setValue('tenableAccessKey', tenable.accessKey || '');
@@ -206,15 +200,8 @@ export const Settings = () => {
           </div>
         </Card>
 
-        {/* OpenCTI & Tenable */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card title="OpenCTI" icon={<Server size={20} />} className="overflow-visible">
-            <div className="p-6 space-y-4">
-              <InputGroup label="URL da Plataforma" name="openCtiUrl" placeholder="https://opencti.local" error={errors.openCtiUrl} register={register} />
-              <InputGroup label="Auth Token" name="openCtiToken" type="password" placeholder="Bearer Token" error={errors.openCtiToken} register={register} />
-            </div>
-          </Card>
-
+        {/* Tenable */}
+        <div className="grid grid-cols-1 gap-6">
           <Card title="Tenable.io" icon={<Server size={20} />} className="overflow-visible">
             <div className="p-6 space-y-4">
               <InputGroup label="Access Key" name="tenableAccessKey" placeholder="Tenable Access Key" error={errors.tenableAccessKey} register={register} />

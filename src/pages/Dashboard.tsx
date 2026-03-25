@@ -5,7 +5,7 @@ import { SeverityBadge } from '../components/ui/SeverityBadge';
 import { AlertItem } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Activity, Database, Globe, Rss, Shield } from 'lucide-react';
+import { Activity, Database, Rss, Shield } from 'lucide-react';
 
 const AlertList = ({ items }: { items: AlertItem[] }) => (
   <ul className="divide-y divide-slate-100">
@@ -34,7 +34,6 @@ export const Dashboard = () => {
     elastic: data?.elastic.slice(0, 5) ?? [],
     defender: data?.defender.slice(0, 5) ?? [],
     tenable: data?.tenable.slice(0, 5) ?? [],
-    opencti: data?.opencti.slice(0, 5) ?? [],
     rss: data?.rss.slice(0, 5) ?? [],
   };
 
@@ -93,20 +92,11 @@ export const Dashboard = () => {
           <AlertList items={latestAlerts.tenable} />
         </Card>
 
-        {/* OpenCTI */}
-        <Card 
-          title="OpenCTI Intelligence" 
-          icon={<Globe size={20} className="text-indigo-600" />}
-          className="xl:col-span-2 border-t-4 border-t-indigo-500"
-        >
-          <AlertList items={latestAlerts.opencti} />
-        </Card>
-
         {/* RSS Feeds */}
         <Card 
           title="Cyber Security News (RSS)" 
           icon={<Rss size={20} className="text-emerald-600" />}
-          className="xl:col-span-1 border-t-4 border-t-emerald-500"
+          className="xl:col-span-2 border-t-4 border-t-emerald-500"
         >
           <AlertList items={latestAlerts.rss} />
         </Card>
