@@ -5,7 +5,7 @@ import { SeverityBadge } from '../components/ui/SeverityBadge';
 import { AlertItem } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Activity, Database, Rss, Shield } from 'lucide-react';
+import { Activity, Rss, Shield } from 'lucide-react';
 
 const AlertList = ({ items }: { items: AlertItem[] }) => (
   <ul className="divide-y divide-slate-100">
@@ -31,7 +31,6 @@ const AlertList = ({ items }: { items: AlertItem[] }) => (
 export const Dashboard = () => {
   const { data, loading, lastUpdated } = usePolling(30000);
   const latestAlerts = {
-    elastic: data?.elastic.slice(0, 5) ?? [],
     defender: data?.defender.slice(0, 5) ?? [],
     tenable: data?.tenable.slice(0, 5) ?? [],
     rss: data?.rss.slice(0, 5) ?? [],
@@ -65,15 +64,6 @@ export const Dashboard = () => {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Elastic Search - On Premise */}
-        <Card 
-          title="Elastic SIEM" 
-          icon={<Database size={20} className="text-pink-600" />}
-          className="xl:col-span-1 border-t-4 border-t-pink-500"
-        >
-          <AlertList items={latestAlerts.elastic} />
-        </Card>
-
         {/* Microsoft Defender */}
         <Card 
           title="Microsoft Defender 365" 

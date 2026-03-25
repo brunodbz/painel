@@ -4,9 +4,6 @@ import { Card } from '../components/ui/Card';
 import { Server, Key, Save, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
 type SettingsFormValues = {
-  elasticUrl: string;
-  elasticUsername: string;
-  elasticPassword: string;
   defenderTenantId: string;
   defenderClientId: string;
   defenderSecret: string;
@@ -66,13 +63,7 @@ export const Settings = () => {
       const result = await parseApiResponse(response);
 
       if (result.success && result.data) {
-        const { elastic, defender, tenable, rss } = result.data;
-
-        if (elastic) {
-          setValue('elasticUrl', elastic.url || '');
-          setValue('elasticUsername', elastic.username || '');
-          setValue('elasticPassword', elastic.password || elastic.apiKey || '');
-        }
+        const { defender, tenable, rss } = result.data;
         if (defender) {
           setValue('defenderTenantId', defender.tenantId || '');
           setValue('defenderClientId', defender.clientId || '');
@@ -185,15 +176,6 @@ export const Settings = () => {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         
-        {/* Elastic Configuration */}
-        <Card title="Elastic Search (On-Premise)" icon={<Server size={20} />} className="overflow-visible">
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InputGroup label="URL do Cluster" name="elasticUrl" placeholder="https://elastic.internal:9200" error={errors.elasticUrl} register={register} />
-            <InputGroup label="Usuário" name="elasticUsername" placeholder="elastic_user" error={errors.elasticUsername} register={register} />
-            <InputGroup label="Senha" name="elasticPassword" type="password" placeholder="••••••••••••" error={errors.elasticPassword} register={register} />
-          </div>
-        </Card>
-
         {/* Defender Configuration */}
         <Card title="Microsoft Defender 365" icon={<Key size={20} />} className="overflow-visible">
           <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">

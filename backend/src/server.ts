@@ -4,13 +4,6 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
 
-type ElasticSettings = {
-  url?: string;
-  apiKey?: string;
-  username?: string;
-  password?: string;
-};
-
 type DefenderSettings = {
   tenantId?: string;
   clientId?: string;
@@ -27,20 +20,17 @@ type RSSSettings = {
 };
 
 type AppSettings = {
-  elastic?: ElasticSettings;
   defender?: DefenderSettings;
   tenable?: TenableSettings;
   rss?: RSSSettings;
 };
 
 type DashboardData = {
-  elastic: unknown[];
   defender: unknown[];
   tenable: unknown[];
   rss: unknown[];
 };
 import { TenableService } from './services/tenable';
-import { ElasticService } from './services/elastic';
 import { DefenderService } from './services/defender';
 import { RSSService } from './services/rss';
 
@@ -204,7 +194,6 @@ app.get('/api/dashboard', async (req, res) => {
 
     // Inicializar dados vazios
     const dashboardData: DashboardData = {
-      elastic: [],
       defender: [],
       tenable: [],
       rss: []
@@ -212,30 +201,6 @@ app.get('/api/dashboard', async (req, res) => {
 
     // Buscar dados de todas as APIs em paralelo
     const promises = [];
-
-    // Elasticsearch
-    if (settings.elastic?.url && (settings.elastic.apiKey || (settings.elastic.username && settings.elastic.password))) {
-      const elasticSettings = settings.elastic;
-      promises.push(
-        (async () => {
-          try {
-            const elasticService = new ElasticService();
-            const config = elasticSettings.apiKey
-              ? { ...elasticSettings, username: '', password: elasticSettings.apiKey }
-              : elasticSettings;
-            dashboardData.elastic = await elasticService.getAlerts({
-              url: config.url || '',
-              username: config.username || '',
-              password: config.password || '',
-            }, 10);
-            console.log(`✓ Fetched ${dashboardData.elastic.length} alerts from Elasticsearch`);
-          } catch (error) {
-            console.error('Error fetching Elasticsearch data:', error);
-            dashboardData.elastic = [];
-          }
-        })()
-      );
-    }
 
     // Microsoft Defender
     if (settings.defender?.tenantId && settings.defender.clientId && settings.defender.clientSecret) {
@@ -309,9 +274,6 @@ app.get('/api/dashboard', async (req, res) => {
 app.post('/api/settings', async (req, res) => {
   try {
     const {
-      elasticUrl,
-      elasticUsername,
-      elasticPassword,
       defenderTenantId,
       defenderClientId,
       defenderSecret,
@@ -328,15 +290,6 @@ app.post('/api/settings', async (req, res) => {
         DO UPDATE SET config_data = $2::jsonb, is_active = true, updated_at = CURRENT_TIMESTAMP
       `, [serviceName, JSON.stringify(config)]);
     };
-
-    // Salvar Elastic
-    if (elasticUrl && elasticUsername && elasticPassword) {
-      await upsertSetting('elastic', {
-        url: elasticUrl,
-        username: elasticUsername,
-        password: elasticPassword,
-      });
-    }
 
     // Salvar Defender
     if (defenderTenantId && defenderClientId && defenderSecret) {
@@ -397,7 +350,6 @@ app.get('/api/settings', async (req, res) => {
     `);
 
     const settings: Record<string, Record<string, unknown> | null> = {
-      elastic: null,
       defender: null,
       tenable: null,
       rss: null
