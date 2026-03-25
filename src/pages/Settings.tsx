@@ -37,11 +37,34 @@ export const Settings = () => {
     loadSettings();
   }, []);
 
+  const parseApiResponse = async (response: Response) => {
+    const contentType = response.headers.get('content-type') || '';
+    const responseText = await response.text();
+
+    if (contentType.includes('application/json')) {
+      try {
+        return JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          error: `Resposta JSON inválida (HTTP ${response.status})`,
+          details: responseText.slice(0, 200),
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: `Resposta inválida do servidor (HTTP ${response.status})`,
+      details: responseText.slice(0, 200),
+    };
+  };
+
   const loadSettings = async () => {
     try {
       setIsLoading(true);
       const response = await fetch('/api/settings');
-      const result = await response.json();
+      const result = await parseApiResponse(response);
 
       if (result.success && result.data) {
         const { elastic, defender, opencti, tenable, rss } = result.data;
@@ -70,7 +93,7 @@ export const Settings = () => {
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
       setSaveStatus('error');
-      setSaveMessage('Erro ao carregar configurações existentes');
+      setSaveMessage(error instanceof Error ? error.message : 'Erro ao carregar configurações existentes');
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +112,7 @@ export const Settings = () => {
         body: JSON.stringify(data),
       });
 
-      const result = await response.json();
+      const result = await parseApiResponse(response);
 
       if (result.success) {
         setSaveStatus('success');
