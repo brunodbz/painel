@@ -12,7 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.13.2",
+    "axios": "^1.15.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.29.0",
@@ -39,6 +39,6 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.1",
-    "vite": "^6.3.5"
+    "vite": "^6.4.1"
   }
 }

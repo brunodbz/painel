@@ -26,6 +26,28 @@ export class RSSService {
     });
   }
 
+  private isPrivateHost(hostname: string) {
+    const host = hostname.toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === '::1' ||
+      host === '0.0.0.0' ||
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    );
+  }
+
+  private isAllowedFeedUrl(feedUrl: string) {
+    try {
+      const parsed = new URL(feedUrl);
+      return parsed.protocol === 'https:' && !this.isPrivateHost(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
   private getSeverityFromKeywords(title: string, content: string): 'critical' | 'high' | 'medium' | 'low' | 'info' {
     const text = (title + ' ' + content).toLowerCase();
     
@@ -47,6 +69,10 @@ export class RSSService {
 
       // Buscar de todos os feeds em paralelo
       const feedPromises = config.feeds.map(async (feedUrl) => {
+        if (!this.isAllowedFeedUrl(feedUrl)) {
+          console.warn(`Feed bloqueado por segurança: ${feedUrl}`);
+          return [];
+        }
         try {
           const feed = await this.parser.parseURL(feedUrl);
           return feed.items || [];
