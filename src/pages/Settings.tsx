@@ -56,10 +56,19 @@ export const Settings = () => {
     };
   };
 
+  const buildAuthHeaders = () => {
+    const token = localStorage.getItem('socApiToken');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const loadSettings = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/settings');
+      const response = await fetch('/api/settings', {
+        headers: {
+          ...buildAuthHeaders(),
+        },
+      });
       const result = await parseApiResponse(response);
 
       if (result.success && result.data) {
@@ -67,11 +76,11 @@ export const Settings = () => {
         if (defender) {
           setValue('defenderTenantId', defender.tenantId || '');
           setValue('defenderClientId', defender.clientId || '');
-          setValue('defenderSecret', defender.clientSecret || '');
+          setValue('defenderSecret', '');
         }
         if (tenable) {
-          setValue('tenableAccessKey', tenable.accessKey || '');
-          setValue('tenableSecretKey', tenable.secretKey || '');
+          setValue('tenableAccessKey', '');
+          setValue('tenableSecretKey', '');
         }
         if (rss && rss.feeds) {
           setValue('rssFeeds', rss.feeds.join('\n'));
@@ -95,6 +104,7 @@ export const Settings = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...buildAuthHeaders(),
         },
         body: JSON.stringify(data),
       });

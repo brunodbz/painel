@@ -46,10 +46,16 @@ process.on('uncaughtException', (error) => {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const API_AUTH_TOKEN = process.env.API_AUTH_TOKEN;
+const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
+const SETTINGS_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const SETTINGS_RATE_LIMIT_MAX_REQUESTS = 120;
 
 const allowedOrigins = process.env.CORS_ORIGIN 
   ? process.env.CORS_ORIGIN.split(',') 
   : ['http://localhost:5173'];
+
+app.set('trust proxy', TRUST_PROXY);
 
 app.use(cors({
   origin: allowedOrigins,
@@ -57,7 +63,105 @@ app.use(cors({
 }));
 
 app.use(helmet());
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
+
+const settingsAllowedServices = new Set(['defender', 'tenable', 'rss']);
+
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function shouldRequireAuth() {
+  return Boolean(API_AUTH_TOKEN);
+}
+
+function getClientIp(req: Request) {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+function settingsRateLimit(req: Request, res: Response, next: NextFunction) {
+  const now = Date.now();
+  const clientIp = getClientIp(req);
+  const entry = rateLimitStore.get(clientIp);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(clientIp, {
+      count: 1,
+      resetAt: now + SETTINGS_RATE_LIMIT_WINDOW_MS,
+    });
+    return next();
+  }
+
+  if (entry.count >= SETTINGS_RATE_LIMIT_MAX_REQUESTS) {
+    return res.status(429).json({
+      success: false,
+      error: 'Muitas requisições. Tente novamente mais tarde.',
+    });
+  }
+
+  entry.count += 1;
+  return next();
+}
+
+function requireApiToken(req: Request, res: Response, next: NextFunction) {
+  if (!shouldRequireAuth()) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+  const providedToken = bearerToken || (typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : undefined);
+
+  if (!providedToken || providedToken !== API_AUTH_TOKEN) {
+    return res.status(401).json({
+      success: false,
+      error: 'Não autorizado',
+    });
+  }
+
+  return next();
+}
+
+function maskSecret(secret?: string) {
+  if (!secret) return '';
+  if (secret.length <= 4) return '*'.repeat(secret.length);
+  return `${'*'.repeat(secret.length - 4)}${secret.slice(-4)}`;
+}
+
+function sanitizeSettingsOutput(serviceName: string, configData: Record<string, unknown>) {
+  if (serviceName === 'defender') {
+    return {
+      tenantId: configData.tenantId ?? '',
+      clientId: configData.clientId ?? '',
+      clientSecret: maskSecret(typeof configData.clientSecret === 'string' ? configData.clientSecret : ''),
+      hasClientSecret: Boolean(configData.clientSecret),
+    };
+  }
+
+  if (serviceName === 'tenable') {
+    return {
+      accessKey: maskSecret(typeof configData.accessKey === 'string' ? configData.accessKey : ''),
+      secretKey: maskSecret(typeof configData.secretKey === 'string' ? configData.secretKey : ''),
+      hasAccessKey: Boolean(configData.accessKey),
+      hasSecretKey: Boolean(configData.secretKey),
+    };
+  }
+
+  if (serviceName === 'rss') {
+    return {
+      feeds: Array.isArray(configData.feeds) ? configData.feeds : [],
+    };
+  }
+
+  return {};
+}
+
+function isValidRssUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -271,7 +375,7 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // Salvar configurações
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', settingsRateLimit, requireApiToken, async (req, res) => {
   try {
     const {
       defenderTenantId,
@@ -311,6 +415,15 @@ app.post('/api/settings', async (req, res) => {
         .split(/\r?\n/)
         .map((f: string) => f.trim())
         .filter(Boolean);
+
+      const invalidFeeds = feedsArray.filter((feed: string) => !isValidRssUrl(feed));
+      if (invalidFeeds.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Todos os feeds RSS devem usar URLs HTTPS válidas',
+        });
+      }
+
       await upsertSetting('rss', { feeds: feedsArray });
     }
 
@@ -341,7 +454,7 @@ app.post('/api/settings', async (req, res) => {
 });
 
 // Buscar configurações
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', settingsRateLimit, requireApiToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT service_name, config_data, is_active, updated_at
@@ -357,7 +470,7 @@ app.get('/api/settings', async (req, res) => {
 
     result.rows.forEach(row => {
       settings[row.service_name] = {
-        ...row.config_data,
+        ...sanitizeSettingsOutput(row.service_name, row.config_data),
         updatedAt: row.updated_at
       };
     });
@@ -377,9 +490,15 @@ app.get('/api/settings', async (req, res) => {
 });
 
 // Buscar configuração por serviço
-app.get('/api/settings/:service', async (req, res) => {
+app.get('/api/settings/:service', settingsRateLimit, requireApiToken, async (req, res) => {
   try {
     const { service } = req.params;
+    if (!settingsAllowedServices.has(service)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Serviço inválido',
+      });
+    }
     
     const result = await pool.query(`
       SELECT config_data, is_active, updated_at
@@ -396,7 +515,7 @@ app.get('/api/settings/:service', async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: result.rows[0].config_data,
+      data: sanitizeSettingsOutput(service, result.rows[0].config_data),
       updatedAt: result.rows[0].updated_at
     });
   } catch (error) {
@@ -409,9 +528,15 @@ app.get('/api/settings/:service', async (req, res) => {
 });
 
 // Deletar configuração de um serviço
-app.delete('/api/settings/:service', async (req, res) => {
+app.delete('/api/settings/:service', settingsRateLimit, requireApiToken, async (req, res) => {
   try {
     const { service } = req.params;
+    if (!settingsAllowedServices.has(service)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Serviço inválido',
+      });
+    }
     
     await pool.query(`
       UPDATE api_settings 
@@ -447,6 +572,9 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 app.listen(PORT, async () => {
   console.log(`✓ Server running on port ${PORT}`);
   console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (!API_AUTH_TOKEN) {
+    console.warn('⚠ API_AUTH_TOKEN não configurado: endpoints de configuração sem autenticação por token.');
+  }
 
   const connected = await testDatabaseConnection();
   if (!connected) {
